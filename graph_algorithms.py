@@ -2,6 +2,7 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 import heapq
+import collections
 
 # Function to visualize the graph
 def visualize_graph(graph, heuristics, start_node, goal_nodes, path_nodes=None):
@@ -283,4 +284,107 @@ def display_alpha_beta_tree(game_tree, best_path, alpha_beta_data, root='A'):
                 plt.text(x, y + 0.1, s=f"α={alpha}, β={beta}", bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'), horizontalalignment='center')
 
     plt.title("Game Tree with Alpha-Beta Pruning Values, Alpha and Beta Values, and Exploration Marking")
+    plt.show()
+
+# BFS Algorithm
+def bfs(graph, start, goal):
+    queue = collections.deque([(start, [start])])
+    visited = set()
+    explored = []
+    step = 0
+
+    while queue:
+        step += 1
+        (node, path) = queue.popleft()
+        if node in visited:
+            continue
+
+        explored.append(node)
+        visited.add(node)
+
+        print(f"Step {step}: Current node: {node}, Frontier: {list(queue)}, Next node: {path[-1]}")
+        
+        if node == goal:
+            print(f"Goal {goal} reached! Path: {path}")
+            return path, explored
+
+        for neighbor in graph[node]:
+            if neighbor not in visited:
+                queue.append((neighbor, path + [neighbor]))
+
+    print("No path found to the goal.")
+    return None, explored
+
+# DFS Algorithm
+def dfs(graph, start, goal):
+    stack = [(start, [start])]
+    visited = set()
+    explored = []
+    step = 0
+
+    while stack:
+        step += 1
+        (node, path) = stack.pop()
+        if node in visited:
+            continue
+
+        explored.append(node)
+        visited.add(node)
+
+        print(f"Step {step}: Current node: {node}, Frontier: {list(stack)}, Next node: {path[-1]}")
+
+        if node == goal:
+            print(f"Goal {goal} reached! Path: {path}")
+            return path, explored
+
+        for neighbor in reversed(graph[node]):  # Explore neighbors in reverse order for left-to-right DFS
+            if neighbor not in visited:
+                stack.append((neighbor, path + [neighbor]))
+
+    print("No path found to the goal.")
+    return None, explored
+
+# Visualization Function for BFS and DFS
+def visualize_search(graph, start_node, goal_node, path_nodes, explored_nodes):
+    G = nx.DiGraph()
+    for node, edges in graph.items():
+        for neighbor in edges:
+            G.add_edge(node, neighbor)
+
+    def hierarchy_pos(G, root=None, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5):
+        pos = _hierarchy_pos(G, root, width, vert_gap, vert_loc, xcenter)
+        return pos
+
+    def _hierarchy_pos(G, root, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5, pos=None, parent=None, parsed=[]):
+        if pos is None:
+            pos = {root: (xcenter, vert_loc)}
+        else:
+            pos[root] = (xcenter, vert_loc)
+        
+        children = list(G.neighbors(root))
+        if len(children) != 0:
+            width = width / len(children)
+            nextx = xcenter - width / 2 - width / (2 * len(children))
+            for child in children:
+                nextx += width / len(children)
+                pos = _hierarchy_pos(G, child, width, vert_gap, vert_loc - vert_gap, nextx, pos, root, parsed)
+        return pos
+
+    pos = hierarchy_pos(G, start_node)
+    plt.figure(figsize=(12, 8))
+    nx.draw(G, pos, with_labels=True, node_size=3000, node_color='lightblue', font_size=10, font_weight='bold')
+    
+    nx.draw_networkx_nodes(G, pos, nodelist=[start_node], node_color='green', node_size=3000)
+    nx.draw_networkx_nodes(G, pos, nodelist=[goal_node], node_color='red', node_size=3000)
+    nx.draw_networkx_nodes(G, pos, nodelist=explored_nodes, node_color='lightgreen', node_size=3000)
+    nx.draw_networkx_nodes(G, pos, nodelist=path_nodes, node_color='yellow', node_size=3000)
+
+    # Adding numbers to indicate the order in which nodes were visited
+    node_labels = {node: str(idx + 1) for idx, node in enumerate(explored_nodes)}
+    for node, (x, y) in pos.items():
+        if node in node_labels:
+            plt.text(x, y - 0.05, s=node_labels[node], bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.2'), 
+                     horizontalalignment='center', fontsize=8)
+
+    plt.title("Graph Visualization with BFS/DFS Search Path and Explored Nodes")
     plt.show()
