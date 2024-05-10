@@ -4,6 +4,8 @@ import sympy
 from sympy.logic.boolalg import Implies, And, Or, Not, Equivalent
 from itertools import chain, combinations
 from sympy.logic.inference import satisfiable
+import sympy as sp
+from sympy.logic.boolalg import to_cnf
 
 def contraction(plausibility_table, proposition):
     """
@@ -64,7 +66,7 @@ def implies_q(subset, q):
         conjunction = conjunction & expr
     
     # Check if conjunction implies q
-    return not satisfiable(conjunction & Not(q))
+    return not satisfiable(conjunction & sp.Not(q))
 
 def is_subset(subset1, subset2):
     """Check if subset1 is a subset of subset2."""
@@ -84,3 +86,23 @@ def bb_contraction(belief_base, proposition):
     candidate_subsets = [subset for subset in subsets_A if not implies_q(subset, proposition)]
     A_contracted_q = maximal_subsets(candidate_subsets)
     return A_contracted_q
+
+# Function to check consistency
+def is_consistent(belief_base):
+    """Check if a belief base is consistent."""
+    conjunction = True
+    for belief in belief_base:
+        conjunction = conjunction & belief
+    return satisfiable(conjunction)
+
+def convert_to_cnf(expression):
+    """
+    Convert a logical expression to Conjunctive Normal Form (CNF).
+
+    Args:
+    expression (sympy.Expr): A sympy logical expression.
+
+    Returns:
+    sympy.Expr: The CNF of the input expression.
+    """
+    return to_cnf(expression, simplify=True)
