@@ -6,6 +6,9 @@ from itertools import chain, combinations
 from sympy.logic.inference import satisfiable
 import sympy as sp
 from sympy.logic.boolalg import to_cnf
+from sympy.logic.boolalg import And, Not, Implies
+from itertools import product
+import pandas as pd
 
 def contraction(plausibility_table, proposition):
     """
@@ -106,3 +109,80 @@ def convert_to_cnf(expression):
     sympy.Expr: The CNF of the input expression.
     """
     return to_cnf(expression, simplify=True)
+
+# Function to convert boolean values to 'T' or 'F'
+def bool_to_tf(value):
+    return 'T' if value else 'F'
+
+# Create a function to compute the truth table
+def compute_truth_table(variables, formulas):
+    # Generate all combinations of truth values for the given variables
+    combinations = list(product([False, True], repeat=len(variables)))
+    
+    # Prepare the header
+    header = [str(var) for var in variables] + [str(formula) for formula in formulas]
+    
+    # Prepare the rows of the table
+    rows = []
+    for combination in combinations:
+        assignments = dict(zip(variables, combination))
+        row = [bool_to_tf(value) for value in combination]
+        for formula in formulas:
+            row.append(bool_to_tf(formula.subs(assignments)))
+        rows.append(row)
+    
+    # Create a DataFrame
+    df = pd.DataFrame(rows, columns=header)
+    
+    # Define a function to apply styles
+    def highlight(cell):
+        if cell == 'T':
+            return 'background-color: lightgreen; color: white'
+        elif cell == 'F':
+            return 'background-color: lightcoral; color: white'
+        return ''
+    
+    # Apply the styles and display the DataFrame
+    styled_df = df.style.applymap(highlight)
+    return styled_df
+
+def compute_belief_revision_table(formulas, belief_revision):
+    # Define the symbols
+    p, q = sp.symbols('p q')
+
+    # Generate all combinations of truth values for p and q
+    combinations = list(product([False, True], repeat=2))
+
+    # Create a list to store the rows
+    rows = []
+
+    # Evaluate each combination
+    for combination in combinations:
+        p_val, q_val = combination
+        row = {
+            'p': p_val,
+            'q': q_val,
+            'Belief Revision: ¬p': belief_revision.subs({p: p_val, q: q_val})
+        }
+        
+        # Evaluate the original formulas
+        for formula, expr in formulas.items():
+            row[formula] = expr.subs({p: p_val, q: q_val})
+        
+        # Evaluate the formulas after applying belief revision (p = False)
+        revised_values = {p: False, q: q_val}
+        for formula, expr in formulas.items():
+            revised_formula = f'After ¬p: {formula}'
+            row[revised_formula] = expr.subs(revised_values)
+        
+        rows.append(row)
+
+    # Create a DataFrame from the rows
+    table = pd.DataFrame(rows)
+
+    # Display the table
+    def bool_to_tf(value):
+        return 'T' if value else 'F'
+
+    styled_table = table.style.applymap(lambda val: 'background-color: lightgreen; color: white' if val else 'background-color: lightcoral; color: white').format(bool_to_tf)
+    return styled_table
