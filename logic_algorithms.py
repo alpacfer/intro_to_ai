@@ -98,17 +98,17 @@ def is_consistent(belief_base):
         conjunction = conjunction & belief
     return satisfiable(conjunction)
 
-def convert_to_cnf(expression):
+def convert_to_cnf(expressions):
     """
-    Convert a logical expression to Conjunctive Normal Form (CNF).
+    Convert a list of logical expressions to Conjunctive Normal Form (CNF).
 
     Args:
-    expression (sympy.Expr): A sympy logical expression.
+    expressions (list of sympy.Expr): A list of sympy logical expressions.
 
     Returns:
-    sympy.Expr: The CNF of the input expression.
+    list of sympy.Expr: A list of CNF expressions corresponding to the input expressions.
     """
-    return to_cnf(expression, simplify=True)
+    return [to_cnf(expr, simplify=True) for expr in expressions]
 
 # Function to convert boolean values to 'T' or 'F'
 def bool_to_tf(value):
