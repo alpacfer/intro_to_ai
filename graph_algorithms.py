@@ -3,9 +3,11 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import heapq
 import collections
+from collections import deque
+import pandas as pd
 
 # Function to visualize the graph
-def visualize_graph(graph, heuristics, start_node, goal_nodes, path_nodes=None):
+def visualize_graph(graph, heuristics, start_node, goal_nodes, visited_nodes=None, path_nodes=None):
     G = nx.Graph()
     for node, edges in graph.items():
         for neighbor, cost in edges.items():
@@ -27,73 +29,118 @@ def visualize_graph(graph, heuristics, start_node, goal_nodes, path_nodes=None):
     nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
     labels = {node: f"{node}\n$h={heuristics[node]}$" for node in G.nodes()}
     nx.draw_networkx_labels(G, pos, labels=labels, font_size=10, font_weight='bold')
-
-    nx.draw_networkx_nodes(G, pos, nodelist=[start_node], node_color='green', node_size=3000)
-    nx.draw_networkx_nodes(G, pos, nodelist=goal_nodes, node_color='red', node_size=3000)
     
+    if visited_nodes:
+        nx.draw_networkx_nodes(G, pos, nodelist=visited_nodes, node_color='lightyellow', node_size=3000)
+        
     if path_nodes:
         nx.draw_networkx_nodes(G, pos, nodelist=path_nodes, node_color='lightgreen', node_size=3000)
 
-    plt.title("Graph Visualization with Start and Goal Nodes and Heuristics")
+    nx.draw_networkx_nodes(G, pos, nodelist=[start_node], node_color='green', node_size=3000)
+    nx.draw_networkx_nodes(G, pos, nodelist=goal_nodes, node_color='red', node_size=3000)
+
+    plt.title("Graph Visualization with Start, Goal, Visited, and Path Nodes")
     plt.show()
 
 # A* Algorithm
-def a_star(graph, heuristics, start, goals):
-    open_list = []
-    heapq.heappush(open_list, (heuristics[start], 0, start, [start]))
-    closed_list = set()
-    visited_nodes = []
+def astar(graph, heuristics, start, goal_nodes):
+    # Priority queue: (cost, current_node, path)
+    frontier = [(heuristics[start], 0, start, [start])]  # (f, g, node, path)
+    explored = set()
+    visited_nodes = set()
+    iterations = 0
+    
+    # Data collection for pandas DataFrame
+    data = {
+        "Iteration": [],
+        "Node": [],
+        "Queue": []
+    }
 
-    while open_list:
-        f_value, g_value, current_node, path = heapq.heappop(open_list)
-        if current_node in closed_list:
-            continue
-        
-        visited_nodes.append((current_node, g_value, heuristics[current_node], f_value))
-        print(f"Visiting node: {current_node}, f(n): {f_value}, g(n): {g_value}, h(n): {heuristics[current_node]}, Path: {path}")
-        closed_list.add(current_node)
-        
-        if current_node in goals:
-            print(f"\nGoal {current_node} reached! Total cost: {g_value}, Path: {path}")
-            print(f"Visited nodes: {visited_nodes}\n")
-            return path
-        
-        for neighbor, step_cost in graph[current_node].items():
-            if neighbor not in closed_list:
-                new_g_value = g_value + step_cost
-                f_value = new_g_value + heuristics[neighbor]
-                heapq.heappush(open_list, (f_value, new_g_value, neighbor, path + [neighbor]))
+    while frontier:
+        iterations += 1
+        # Pop the node with the smallest f value
+        _, current_cost, current_node, path = heapq.heappop(frontier)
 
-    print("No path found to the goal.")
-    return None
+        # Goal test when the node is selected for expansion
+        if current_node in goal_nodes:
+            data["Iteration"].append(iterations)
+            data["Node"].append(current_node)
+            data["Queue"].append([(f, node) for f, _, node, _ in frontier])
+            df = pd.DataFrame(data)
+            print(f"Goal {current_node} reached! Path: {path}, Cost: {current_cost}")
+            return path, visited_nodes, df
+        
+        if current_node not in explored:
+            explored.add(current_node)
+            visited_nodes.add(current_node)
+
+            # Expand the node and add to frontier
+            for neighbor, cost in graph[current_node].items():
+                if neighbor not in explored:
+                    new_cost = current_cost + cost
+                    f = new_cost + heuristics[neighbor]
+                    new_path = list(path)
+                    new_path.append(neighbor)
+                    heapq.heappush(frontier, (f, new_cost, neighbor, new_path))
+        
+        # Collect data for the current iteration
+        data["Iteration"].append(iterations)
+        data["Node"].append(current_node)
+        data["Queue"].append([(f, node) for f, _, node, _ in frontier])
+    
+    print("Goal not reached.")
+    df = pd.DataFrame(data)
+    return None, visited_nodes, df
 
 # Greedy Best-First Search (GBFS) Algorithm
-def gbfs(graph, heuristics, start, goals):
-    open_list = []
-    heapq.heappush(open_list, (heuristics[start], start, [start]))
-    closed_list = set()
-    visited_nodes = []
+def gbfs(graph, heuristics, start, goal_nodes):
+    # Priority queue: (heuristic, current_node, path)
+    frontier = [(heuristics[start], start, [start])]
+    explored = set()
+    visited_nodes = set()
+    iterations = 0
+    
+    # Data collection for pandas DataFrame
+    data = {
+        "Iteration": [],
+        "Node": [],
+        "Queue": []
+    }
 
-    while open_list:
-        h_value, current_node, path = heapq.heappop(open_list)
-        if current_node in closed_list:
-            continue
-        
-        visited_nodes.append(current_node)
-        print(f"Visiting node: {current_node}, h(n): {h_value}, Path: {path}")
-        closed_list.add(current_node)
-        
-        if current_node in goals:
-            print(f"\nGoal {current_node} reached! Path: {path}")
-            print(f"Visited nodes: {visited_nodes}\n")
-            return path
-        
-        for neighbor in graph[current_node]:
-            if neighbor not in closed_list:
-                heapq.heappush(open_list, (heuristics[neighbor], neighbor, path + [neighbor]))
+    while frontier:
+        iterations += 1
+        # Pop the node with the smallest heuristic value
+        _, current_node, path = heapq.heappop(frontier)
 
-    print("No path found to the goal.")
-    return None
+        # Goal test when the node is selected for expansion
+        if current_node in goal_nodes:
+            data["Iteration"].append(iterations)
+            data["Node"].append(current_node)
+            data["Queue"].append([(heuristics[node], node) for _, node, _ in frontier])
+            df = pd.DataFrame(data)
+            print(f"Goal {current_node} reached! Path: {path}")
+            return path, visited_nodes, df
+        
+        if current_node not in explored:
+            explored.add(current_node)
+            visited_nodes.add(current_node)
+
+            # Expand the node and add to frontier based on heuristic value
+            for neighbor in graph[current_node]:
+                if neighbor not in explored:
+                    new_path = list(path)
+                    new_path.append(neighbor)
+                    heapq.heappush(frontier, (heuristics[neighbor], neighbor, new_path))
+        
+        # Collect data for the current iteration
+        data["Iteration"].append(iterations)
+        data["Node"].append(current_node)
+        data["Queue"].append([(heuristics[node], node) for _, node, _ in frontier])
+    
+    print("Goal not reached.")
+    df = pd.DataFrame(data)
+    return None, visited_nodes, df
 
 # Function to compute shortest path costs
 def compute_shortest_path_costs(graph, goal_nodes):
@@ -122,14 +169,14 @@ def check_admissibility(heuristics, shortest_path_costs):
             print(f"Heuristic is not admissible at node {node}: h(n) = {h_value} > actual cost = {shortest_path_cost}")
     return admissible
 
-def display_minimax_tree(game_tree, best_path, root='A'):
+def display_minimax_tree(game_tree, values, best_path, root='A'):
     G = nx.DiGraph()
 
     def add_edges(graph, node):
         if isinstance(game_tree[node], int):
-            graph.add_node(node, label=f"{node}\n{game_tree[node]}")
+            graph.add_node(node, label=f"{node}\n{values[node]}")
         else:
-            graph.add_node(node, label=node)
+            graph.add_node(node, label=f"{node}\n{values[node]}")
             for child in game_tree[node]:
                 graph.add_edge(node, child)
                 add_edges(graph, child)
@@ -162,9 +209,8 @@ def display_minimax_tree(game_tree, best_path, root='A'):
 
     def display_minimax_values(node, game_tree, is_maximizing):
         if not isinstance(game_tree[node], int):
-            value, _ = minimax(node, game_tree, is_maximizing)
             x, y = pos[node]
-            plt.text(x, y + 0.1, s=f"{value}", bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'), horizontalalignment='center')
+            plt.text(x, y + 0.05, s=f"{values[node]}", bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'), horizontalalignment='center')
             for child in game_tree[node]:
                 display_minimax_values(child, game_tree, not is_maximizing)
 
@@ -173,76 +219,108 @@ def display_minimax_tree(game_tree, best_path, root='A'):
     plt.show()
 
 
-def minimax(node, game_tree, is_maximizing):
-    if isinstance(game_tree[node], int):
+def minimax(node, depth, maximizing_player, game_tree, values):
+    # If the node is a terminal node (no children), return its value and the path
+    if not isinstance(game_tree[node], list):
+        values[node] = game_tree[node]
         return game_tree[node], [node]
 
-    if is_maximizing:
-        best_value = float('-inf')
+    if maximizing_player:
+        max_eval = float('-inf')
         best_path = []
         for child in game_tree[node]:
-            val, path = minimax(child, game_tree, False)
-            if val > best_value:
-                best_value = val
-                best_path = path
-        return best_value, [node] + best_path
+            eval, path = minimax(child, depth + 1, False, game_tree, values)
+            if eval > max_eval:
+                max_eval = eval
+                best_path = [node] + path
+        values[node] = max_eval
+        return max_eval, best_path
     else:
-        best_value = float('inf')
+        min_eval = float('inf')
         best_path = []
         for child in game_tree[node]:
-            val, path = minimax(child, game_tree, True)
-            if val < best_value:
-                best_value = val
-                best_path = path
-        return best_value, [node] + best_path
+            eval, path = minimax(child, depth + 1, True, game_tree, values)
+            if eval < min_eval:
+                min_eval = eval
+                best_path = [node] + path
+        values[node] = min_eval
+        return min_eval, best_path
 
+def print_ordered_values(values):
+    ordered_nodes = sorted(values.items())
+    for node, value in ordered_nodes:
+        print(f"Node {node}: {value}")
 
-# Alpha-beta pruning algorithm
-def alpha_beta(node, game_tree, is_maximizing, alpha, beta, alpha_beta_data):
-    if isinstance(game_tree[node], int):
-        alpha_beta_data['visited_nodes'].add(node)
+# Alpha beta pruning algorithm
+def alpha_beta_pruning(node, depth, alpha, beta, maximizing_player, game_tree, values, alpha_values, beta_values, pruned_branches):
+    # If the node is a terminal node (no children), return its value and the path
+    if not isinstance(game_tree[node], list):
+        values[node] = game_tree[node]
+        alpha_values[node] = alpha
+        beta_values[node] = beta
         return game_tree[node], [node]
 
-    if is_maximizing:
-        best_value = float('-inf')
+    if maximizing_player:
+        max_eval = float('-inf')
         best_path = []
         for child in game_tree[node]:
-            val, path = alpha_beta(child, game_tree, False, alpha, beta, alpha_beta_data)
-            if val > best_value:
-                best_value = val
-                best_path = path
-            alpha = max(alpha, best_value)
+            eval, path = alpha_beta_pruning(child, depth + 1, alpha, beta, False, game_tree, values, alpha_values, beta_values, pruned_branches)
+            if eval > max_eval:
+                max_eval = eval
+                best_path = [node] + path
+            alpha = max(alpha, eval)
             if beta <= alpha:
-                break  # Beta cut-off
-        alpha_beta_data['alpha'][node] = alpha
-        alpha_beta_data['beta'][node] = beta
-        alpha_beta_data['visited_nodes'].add(node)
-        return best_value, [node] + best_path
+                # Collect all nodes in the pruned subtree
+                def collect_pruned_nodes(n):
+                    if isinstance(game_tree[n], list):
+                        for ch in game_tree[n]:
+                            collect_pruned_nodes(ch)
+                    pruned_branches.append(n)
+                collect_pruned_nodes(child)
+                break
+        values[node] = max_eval
+        alpha_values[node] = alpha
+        beta_values[node] = beta
+        return max_eval, best_path
     else:
-        best_value = float('inf')
+        min_eval = float('inf')
         best_path = []
         for child in game_tree[node]:
-            val, path = alpha_beta(child, game_tree, True, alpha, beta, alpha_beta_data)
-            if val < best_value:
-                best_value = val
-                best_path = path
-            beta = min(beta, best_value)
+            eval, path = alpha_beta_pruning(child, depth + 1, alpha, beta, True, game_tree, values, alpha_values, beta_values, pruned_branches)
+            if eval < min_eval:
+                min_eval = eval
+                best_path = [node] + path
+            beta = min(beta, eval)
             if beta <= alpha:
-                break  # Alpha cut-off
-        alpha_beta_data['alpha'][node] = alpha
-        alpha_beta_data['beta'][node] = beta
-        alpha_beta_data['visited_nodes'].add(node)
-        return best_value, [node] + best_path
+                # Collect all nodes in the pruned subtree
+                def collect_pruned_nodes(n):
+                    if isinstance(game_tree[n], list):
+                        for ch in game_tree[n]:
+                            collect_pruned_nodes(ch)
+                    pruned_branches.append(n)
+                collect_pruned_nodes(child)
+                break
+        values[node] = min_eval
+        alpha_values[node] = alpha
+        beta_values[node] = beta
+        return min_eval, best_path
+
 
 # Function to display the alpha-beta tree
-def display_alpha_beta_tree(game_tree, best_path, alpha_beta_data, root='A'):
+def display_alpha_beta_tree(game_tree, values, alpha_values, beta_values, best_path, root='A'):
     G = nx.DiGraph()
 
     def add_edges(graph, node):
         if isinstance(game_tree[node], int):
-            graph.add_node(node, label=f"{node}\n{game_tree[node]}")
+            values[node] = values.get(node, game_tree[node])
+            alpha_values[node] = alpha_values.get(node, 'N/A')
+            beta_values[node] = beta_values.get(node, 'N/A')
+            graph.add_node(node, label=f"{node}\nα={alpha_values[node]}\nβ={beta_values[node]}\nv={values[node]}")
         else:
-            graph.add_node(node, label=node)
+            values[node] = values.get(node, 'N/A')
+            alpha_values[node] = alpha_values.get(node, 'N/A')
+            beta_values[node] = beta_values.get(node, 'N/A')
+            graph.add_node(node, label=f"{node}\nα={alpha_values[node]}\nβ={beta_values[node]}\nv={values[node]}")
             for child in game_tree[node]:
                 graph.add_edge(node, child)
                 add_edges(graph, child)
@@ -271,78 +349,108 @@ def display_alpha_beta_tree(game_tree, best_path, alpha_beta_data, root='A'):
     pos = hierarchy_pos(G, root)
     plt.figure(figsize=(12, 8))
     nx.draw(G, pos, with_labels=True, labels=nx.get_node_attributes(G, 'label'), node_size=3000, node_color='lightblue', font_size=10, font_weight='bold', arrowsize=20)
-    nx.draw_networkx_nodes(G, pos, nodelist=best_path, node_color='green', node_size=3000)
-    explored_nodes = list(alpha_beta_data['visited_nodes'] - set(best_path))
-    nx.draw_networkx_nodes(G, pos, nodelist=explored_nodes, node_color='lightgreen', node_size=3000)
+    nx.draw_networkx_nodes(G, pos, nodelist=best_path, node_color='lightgreen', node_size=3000)
 
-    for node in G.nodes:
-        if node in alpha_beta_data['visited_nodes']:
-            alpha = alpha_beta_data['alpha'].get(node, None)
-            beta = alpha_beta_data['beta'].get(node, None)
-            x, y = pos[node]
-            if alpha is not None and beta is not None:
-                plt.text(x, y + 0.1, s=f"α={alpha}, β={beta}", bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'), horizontalalignment='center')
+    pruned_nodes = [node for node in G.nodes if alpha_values[node] == 'N/A' or beta_values[node] == 'N/A']
+    nx.draw_networkx_nodes(G, pos, nodelist=pruned_nodes, node_color='red', node_size=3000, alpha=0.5)
 
-    plt.title("Game Tree with Alpha-Beta Pruning Values, Alpha and Beta Values, and Exploration Marking")
+    plt.title("Game Tree with Alpha-Beta Pruning Values and Best Path")
     plt.show()
 
 # BFS Algorithm
 def bfs(graph, start, goal):
-    queue = collections.deque([(start, [start])])
-    visited = set()
-    explored = []
-    step = 0
+    frontier = deque([(start, [start])])  # Using deque for the queue
+    explored = set()
+    order_of_exploration = []
+    iterations = 0
 
-    while queue:
-        step += 1
-        (node, path) = queue.popleft()
-        if node in visited:
-            continue
+    # Data collection for pandas DataFrame
+    data = {
+        "Iteration": [],
+        "Node": [],
+        "Queue": []
+    }
 
-        explored.append(node)
-        visited.add(node)
+    while frontier:
+        iterations += 1
+        current_node, path = frontier.popleft()  # Pop from the left (FIFO)
 
-        print(f"Step {step}: Current node: {node}, Frontier: {list(queue)}, Next node: {path[-1]}")
-        
-        if node == goal:
+        if current_node == goal:
+            order_of_exploration.append(current_node)
+            data["Iteration"].append(iterations)
+            data["Node"].append(current_node)
+            data["Queue"].append([node for node, _ in frontier])
+            df = pd.DataFrame(data)
             print(f"Goal {goal} reached! Path: {path}")
-            return path, explored
+            return path, order_of_exploration, df
+        
+        if current_node not in explored:
+            explored.add(current_node)
+            order_of_exploration.append(current_node)
 
-        for neighbor in graph[node]:
-            if neighbor not in visited:
-                queue.append((neighbor, path + [neighbor]))
+            # Expand the node and add to frontier in FIFO manner
+            for neighbor in graph[current_node]:
+                if neighbor not in explored:
+                    new_path = list(path)
+                    new_path.append(neighbor)
+                    frontier.append((neighbor, new_path))  # Append to the right (FIFO)
 
-    print("No path found to the goal.")
-    return None, explored
+            # Collect data for the current iteration
+            data["Iteration"].append(iterations)
+            data["Node"].append(current_node)
+            data["Queue"].append([node for node, _ in frontier])
 
-# DFS Algorithm
+    print("Goal not reached.")
+    df = pd.DataFrame(data)
+    return None, order_of_exploration, df
+
+
 def dfs(graph, start, goal):
-    stack = [(start, [start])]
+    stack = [(start, [start])]  # Using list for the stack
     visited = set()
-    explored = []
-    step = 0
+    order_of_exploration = []
+    iterations = 0
+
+    # Data collection for pandas DataFrame
+    data = {
+        "Iteration": [],
+        "Node": [],
+        "Stack": []
+    }
 
     while stack:
-        step += 1
-        (node, path) = stack.pop()
-        if node in visited:
-            continue
+        iterations += 1
+        current_node, path = stack.pop()  # Pop from the right (LIFO)
 
-        explored.append(node)
-        visited.add(node)
-
-        print(f"Step {step}: Current node: {node}, Frontier: {list(stack)}, Next node: {path[-1]}")
-
-        if node == goal:
+        if current_node == goal:
+            order_of_exploration.append(current_node)
+            data["Iteration"].append(iterations)
+            data["Node"].append(current_node)
+            data["Stack"].append([node for node, _ in stack])
+            df = pd.DataFrame(data)
             print(f"Goal {goal} reached! Path: {path}")
-            return path, explored
+            return path, order_of_exploration, df
 
-        for neighbor in reversed(graph[node]):  # Explore neighbors in reverse order for left-to-right DFS
-            if neighbor not in visited:
-                stack.append((neighbor, path + [neighbor]))
+        if current_node not in visited:
+            visited.add(current_node)
+            order_of_exploration.append(current_node)
 
-    print("No path found to the goal.")
-    return None, explored
+            # Expand the node and add to stack in LIFO manner
+            for neighbor in graph[current_node]:  # Maintain the original order
+                if neighbor not in visited:
+                    new_path = list(path)
+                    new_path.append(neighbor)
+                    stack.append((neighbor, new_path))  # Append to the right (LIFO)
+
+            # Collect data for the current iteration
+            data["Iteration"].append(iterations)
+            data["Node"].append(current_node)
+            data["Stack"].append([node for node, _ in stack])
+
+    print("Goal not reached.")
+    df = pd.DataFrame(data)
+    return None, order_of_exploration, df
+
 
 # Visualization Function for BFS and DFS
 def visualize_search(graph, start_node, goal_node, path_nodes, explored_nodes):
@@ -374,10 +482,11 @@ def visualize_search(graph, start_node, goal_node, path_nodes, explored_nodes):
     plt.figure(figsize=(12, 8))
     nx.draw(G, pos, with_labels=True, node_size=3000, node_color='lightblue', font_size=10, font_weight='bold')
     
+    # Draw the nodes with specific colors
     nx.draw_networkx_nodes(G, pos, nodelist=[start_node], node_color='green', node_size=3000)
-    nx.draw_networkx_nodes(G, pos, nodelist=[goal_node], node_color='red', node_size=3000)
-    nx.draw_networkx_nodes(G, pos, nodelist=explored_nodes, node_color='lightgreen', node_size=3000)
-    nx.draw_networkx_nodes(G, pos, nodelist=path_nodes, node_color='yellow', node_size=3000)
+    nx.draw_networkx_nodes(G, pos, nodelist=[goal_node], node_color='darkgreen', node_size=3000)  # Strong green for goal node
+    nx.draw_networkx_nodes(G, pos, nodelist=[node for node in explored_nodes if node != goal_node], node_color='lightgreen', node_size=3000)
+    nx.draw_networkx_nodes(G, pos, nodelist=[node for node in path_nodes if node != goal_node], node_color='#FFD700', node_size=3000)  # Stronger yellow for path nodes
 
     # Adding numbers to indicate the order in which nodes were visited
     node_labels = {node: str(idx + 1) for idx, node in enumerate(explored_nodes)}
@@ -388,3 +497,53 @@ def visualize_search(graph, start_node, goal_node, path_nodes, explored_nodes):
 
     plt.title("Graph Visualization with BFS/DFS Search Path and Explored Nodes")
     plt.show()
+
+
+def ucs(graph, start, goal_nodes):
+    # Priority queue: (cost, current_node, path)
+    frontier = [(0, start, [start])]
+    explored = set()
+    visited_nodes = set()
+    iterations = 0
+    
+    # Data collection for pandas DataFrame
+    data = {
+        "Iteration": [],
+        "Node": [],
+        "Queue": []
+    }
+
+    while frontier:
+        iterations += 1
+        # Pop the node with the smallest cost
+        current_cost, current_node, path = heapq.heappop(frontier)
+
+        # Goal test when the node is selected for expansion
+        if current_node in goal_nodes:
+            data["Iteration"].append(iterations)
+            data["Node"].append(current_node)
+            data["Queue"].append([(cost, node) for cost, node, _ in frontier])
+            df = pd.DataFrame(data)
+            print(f"Goal {current_node} reached! Path: {path}, Cost: {current_cost}")
+            return path, visited_nodes, df
+        
+        if current_node not in explored:
+            explored.add(current_node)
+            visited_nodes.add(current_node)
+
+            # Expand the node and add to frontier
+            for neighbor, cost in graph[current_node].items():
+                if neighbor not in explored:
+                    new_cost = current_cost + cost
+                    new_path = list(path)
+                    new_path.append(neighbor)
+                    heapq.heappush(frontier, (new_cost, neighbor, new_path))
+        
+        # Collect data for the current iteration
+        data["Iteration"].append(iterations)
+        data["Node"].append(current_node)
+        data["Queue"].append([(cost, node) for cost, node, _ in frontier])
+    
+    print("Goal not reached.")
+    df = pd.DataFrame(data)
+    return None, visited_nodes, df
