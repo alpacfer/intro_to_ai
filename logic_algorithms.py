@@ -57,46 +57,89 @@ def revision(plausibility_table, proposition):
 
     return most_plausible_state
 
-def all_subsets(s):
-    """Generate all subsets of a set."""
-    return list(chain(*map(lambda x: combinations(s, x), range(0, len(s)+1))))
 
-def implies_q(subset, q):
-    """Check if a subset of A implies q."""
-    # Convert subset to a conjunction of its elements
-    conjunction = True
-    for expr in subset:
-        conjunction = conjunction & expr
-    
-    # Check if conjunction implies q
-    return not satisfiable(conjunction & sp.Not(q))
 
-def is_subset(subset1, subset2):
-    """Check if subset1 is a subset of subset2."""
-    return set(subset1).issubset(set(subset2))
-
-def maximal_subsets(subsets):
-    """Find the maximal subsets from a list of subsets."""
-    maximal = []
-    for subset in subsets:
-        if not any(is_subset(subset, other) for other in subsets if subset != other):
-            maximal.append(subset)
-    return maximal
 
 def bb_contraction(belief_base, proposition):
-    """Find the maximal subsets of belief_base that do not imply proposition."""
+    """Find the maximal subsets of belief_base that do not imply the proposition."""
     subsets_A = all_subsets(belief_base)
     candidate_subsets = [subset for subset in subsets_A if not implies_q(subset, proposition)]
     A_contracted_q = maximal_subsets(candidate_subsets)
     return A_contracted_q
 
-# Function to check consistency
+def all_subsets(s):
+    """Return all subsets of a set."""
+    return list(chain(*[combinations(s, r) for r in range(len(s) + 1)]))
+
+def implies_q(subset, proposition):
+    """Check if a subset implies a given proposition."""
+    conjunction = sp.And(*subset)
+    return sp.Implies(conjunction, proposition).simplify() == True
+
+def maximal_subsets(subsets):
+    """Return the maximal subsets from a list of subsets."""
+    maximal = []
+    for subset in subsets:
+        if not any(set(subset).issubset(set(other)) for other in subsets if subset != other):
+            maximal.append(subset)
+    return maximal
+
 def is_consistent(belief_base):
     """Check if a belief base is consistent."""
-    conjunction = True
-    for belief in belief_base:
-        conjunction = conjunction & belief
-    return satisfiable(conjunction)
+    conjunction = sp.And(*belief_base)
+    return bool(satisfiable(conjunction))
+
+
+
+
+
+def contract_belief_base(belief_base, new_belief):
+    """Find the maximal subsets of belief_base that do not imply the negation of new_belief."""
+    all_subsets_base = get_all_subsets(belief_base)
+    valid_subsets = [subset for subset in all_subsets_base if not subset_implies(subset, Not(new_belief))]
+    contracted_belief_base = get_maximal_subsets(valid_subsets)
+    return contracted_belief_base
+
+def get_all_subsets(s):
+    """Return all subsets of a set."""
+    return list(chain(*[combinations(s, r) for r in range(len(s) + 1)]))
+
+def subset_implies(subset, proposition):
+    """Check if a subset implies a given proposition."""
+    conjunction = sp.And(*subset)
+    return sp.Implies(conjunction, proposition).simplify() == True
+
+def get_maximal_subsets(subsets):
+    """Return the maximal subsets from a list of subsets."""
+    maximal = []
+    for subset in subsets:
+        if not any(set(subset).issubset(set(other)) for other in subsets if subset != other):
+            maximal.append(subset)
+    return maximal
+
+def check_consistency(belief_base):
+    """Check if a belief base is consistent."""
+    conjunction = sp.And(*belief_base)
+    return bool(satisfiable(conjunction))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def convert_to_cnf(expressions):
     """
@@ -186,3 +229,29 @@ def compute_belief_revision_table(formulas, belief_revision):
 
     styled_table = table.style.applymap(lambda val: 'background-color: lightgreen; color: white' if val else 'background-color: lightcoral; color: white').format(bool_to_tf)
     return styled_table
+
+def display_plausibility_table(plausibility_table):
+    # Extract the columns and rows from the plausibility table
+    columns = ['p, q', 'p, q̅', 'p̅, q', 'p̅, q̅']
+    max_order = max(item['order'] for item in plausibility_table.values())
+    rows = list(range(max_order))
+    
+    # Initialize an empty DataFrame
+    data = {col: [''] * max_order for col in columns}
+    
+    # Fill in the DataFrame with the states based on the plausibility order
+    for key, value in plausibility_table.items():
+        col_name = key.replace('n_q', 'q̅').replace('n_p', 'p̅')
+        state = value['states'][0]
+        row_index = max_order - value['order']  # Invert order to have the most plausible at the bottom
+        data[col_name][row_index] = state
+    
+    df = pd.DataFrame(data)
+    
+    # Apply vertical lines to the DataFrame using Styler
+    styled_df = df.style.set_table_styles(
+        [{'selector': 'td, th',
+          'props': [('border', '1px solid black')]}]
+    )
+    
+    return styled_df
