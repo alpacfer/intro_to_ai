@@ -93,6 +93,53 @@ def astar(graph, heuristics, start, goal_nodes):
     df = pd.DataFrame(data)
     return None, visited_nodes, df
 
+def astar_tree(graph, heuristics, start, goal_nodes):
+    # Priority queue: (cost, current_node, path)
+    frontier = [(heuristics[start], 0, start, [start])]  # (f, g, node, path)
+    iterations = 0
+    max_iterations = 30
+    visited_nodes = set()
+    
+    # Data collection for pandas DataFrame
+    data = {
+        "Iteration": [],
+        "Node": [],
+        "Queue": []
+    }
+
+    while frontier and iterations < max_iterations:
+        iterations += 1
+        # Pop the node with the smallest f value
+        _, current_cost, current_node, path = heapq.heappop(frontier)
+
+        # Goal test when the node is selected for expansion
+        if current_node in goal_nodes:
+            data["Iteration"].append(iterations)
+            data["Node"].append(current_node)
+            data["Queue"].append([(f, node) for f, _, node, _ in frontier])
+            df = pd.DataFrame(data)
+            print(f"Goal {current_node} reached! Path: {path}, Cost: {current_cost}")
+            return path, visited_nodes, df
+
+        visited_nodes.add(current_node)
+
+        # Expand the node and add to frontier
+        for neighbor, cost in graph[current_node].items():
+            new_cost = current_cost + cost
+            f = new_cost + heuristics[neighbor]
+            new_path = list(path)
+            new_path.append(neighbor)
+            heapq.heappush(frontier, (f, new_cost, neighbor, new_path))
+
+        # Collect data for the current iteration
+        data["Iteration"].append(iterations)
+        data["Node"].append(current_node)
+        data["Queue"].append([(f, node) for f, _, node, _ in frontier])
+
+    print("Goal not reached within max iterations.")
+    df = pd.DataFrame(data)
+    return None, visited_nodes, df
+
 # Greedy Best-First Search (GBFS) Algorithm
 def gbfs(graph, heuristics, start, goal_nodes):
     # Priority queue: (heuristic, current_node, path)
@@ -141,6 +188,54 @@ def gbfs(graph, heuristics, start, goal_nodes):
     print("Goal not reached.")
     df = pd.DataFrame(data)
     return None, visited_nodes, df
+
+
+def gbfs_tree(graph, heuristics, start, goal_nodes):
+    # Priority queue: (heuristic, current_node, path)
+    frontier = [(heuristics[start], start, [start])]
+    iterations = 0
+    max_iterations = 20
+    visited_nodes = set()
+    
+    # Data collection for pandas DataFrame
+    data = {
+        "Iteration": [],
+        "Node": [],
+        "Queue": []
+    }
+
+    while frontier and iterations < max_iterations:
+        iterations += 1
+        # Pop the node with the smallest heuristic value
+        _, current_node, path = heapq.heappop(frontier)
+
+        # Goal test when the node is selected for expansion
+        if current_node in goal_nodes:
+            data["Iteration"].append(iterations)
+            data["Node"].append(current_node)
+            data["Queue"].append([(heuristics[node], node) for _, node, _ in frontier])
+            df = pd.DataFrame(data)
+            print(f"Goal {current_node} reached! Path: {path}")
+            return path, visited_nodes, df
+
+        visited_nodes.add(current_node)
+
+        # Expand the node and add to frontier based on heuristic value
+        for neighbor in graph[current_node]:
+            new_path = list(path)
+            new_path.append(neighbor)
+            heapq.heappush(frontier, (heuristics[neighbor], neighbor, new_path))
+
+        # Collect data for the current iteration
+        data["Iteration"].append(iterations)
+        data["Node"].append(current_node)
+        data["Queue"].append([(heuristics[node], node) for _, node, _ in frontier])
+
+    print("Goal not reached within max iterations.")
+    df = pd.DataFrame(data)
+    return None, visited_nodes, df
+
+
 
 # Function to compute shortest path costs
 def compute_shortest_path_costs(graph, goal_nodes):
